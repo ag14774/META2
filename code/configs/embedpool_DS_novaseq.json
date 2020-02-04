@@ -1,0 +1,161 @@
+{
+    "name": "RefSeq_EmbedPoolDS_novaseq",
+
+    "arch": {
+        "type": "EmbedPoolDS",
+        "args": {
+            "list_num_classes": "!data_loader.dataset.instance_dataset.rank_sizes",
+            "all_levels": "!data_loader.dataset.instance_dataset.categories_with_leaf",
+            "selected_level": "species",
+            "mlp_dim": 3000,
+            "vocab_size": "!data_loader.vocab_size",
+            "embedding_dim": 100,
+            "sparse_gradient": true,
+            "!ds_dropout": [0.0, 0.5],
+            "!ds_position": ["after_embedding", "before_logits", "after_logits"]
+        }
+    },
+    "mapper": {
+        "type": "SingleNodeDataParallel",
+        "args": {
+          "n_gpu": 1
+        }
+    },
+    "data_loader": {
+        "type": "RefSeqProkaryotaKmerBagsDataLoader",
+        "args": {
+            "target_format": "probs",
+            "genome_dir": "$(DATA_DIR)refseq_prokaryota/genomes",
+            "taxonomy_dir": "$(DATA_DIR)refseq_prokaryota/taxonomy",
+            "total_bags": 128,
+            "!bag_size": [512, 2048],
+            "!batch_size": [1, 2, 4],
+            "kmer_vocab_file": "$(DATA_DIR)refseq_prokaryota/token_11mer",
+            "fixed_dataset": false,
+            "drop_last": false,
+            "training_distribution": "lognormal",
+            "validation_distribution": "lognormal",
+            "shuffle": true,
+            "validation_split": 8,
+            "num_workers": 4,
+            "accessions_file": "$(DATA_DIR)refseq_prokaryota/ncbi_id_training_filtered.txt",
+            "taxids_list": null,
+            "error_model": "novaseq",
+            "rmin": 1000,
+            "rmax": 1000,
+            "noise": 0.0,
+            "forward_reads_only": true,
+            "filter_by_level": null,
+            "num_to_keep": 1,
+            "download": false,
+            "genome_cache_size": -1
+        }
+    },
+    "optimizer": {
+      "type": "MultiOpt",
+      "args": {
+        "optimizers": {
+          "embedding": {
+            "type": "SparseAdam",
+            "args": {
+                "lr": 0.001
+            }
+          },
+          "!default": [
+            {
+              "type": "Adam",
+              "args": {
+                  "lr": 0.001,
+                  "amsgrad": true
+              }
+            },
+            {
+              "type": "RMSprop",
+              "args": {
+                  "lr": 0.001,
+                  "momentum": 0.0,
+                  "centered": false
+              }
+            },
+            {
+              "type": "RMSprop",
+              "args": {
+                  "lr": 0.001,
+                  "momentum": 0.5,
+                  "centered": false
+              }
+            },
+            {
+              "type": "SGD",
+              "args": {
+                  "lr": 0.001,
+                  "momentum": 0.9,
+                  "nesterov": true
+              }
+            },
+            {
+              "type": "SGD",
+              "args": {
+                  "lr": 0.001,
+                  "momentum": 0.99,
+                  "nesterov": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "loss": {
+      "type": "JSPerRank",
+      "args": {
+        "selected_levels": ["species"],
+        "all_levels": "!data_loader.dataset.instance_dataset.categories_with_leaf"
+      }
+    },
+    "metrics": [
+      {
+        "type": "JSPerTaxGroup",
+        "args": {
+          "target_out_format": "probs",
+          "model_out_format": "logprobs",
+          "selected_levels": ["species"],
+          "groups": "!data_loader.dataset.instance_dataset.categories"
+        }
+      }
+    ],
+    "lr_scheduler": {
+      "type": "MultiLR",
+      "args": {
+        "lr_schedulers": {
+          "default": {
+            "type": "StepLR",
+            "args": {
+              "step_size": 1,
+              "gamma": 0.999
+            }
+          }
+        }
+      }
+    },
+    "trainer": {
+        "type": "Trainer",
+        "args": {},
+        "extra_args": {
+          "epochs": 200,
+
+          "save_dir": "$(REMOTE_RESULTS_DIR)saved/",
+          "save_period": 10,
+          "keep_last": 2,
+          "verbosity": 2,
+
+          "monitor": "min val_loss",
+          "early_stop": 5000,
+
+          "tensorboardX": true,
+          "disable_hist": true
+        }
+    },
+    "testing": {
+      "verbosity": 2
+    }
+}

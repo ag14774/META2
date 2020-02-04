@@ -1,0 +1,132 @@
+{
+    "name": "RefSeq_EmbedPoolConv",
+
+    "arch": {
+        "type": "EmbedPoolConv",
+        "args": {
+            "list_num_classes": "!data_loader.dataset.rank_sizes",
+            "all_levels": "!data_loader.dataset.categories_with_leaf",
+            "selected_level": "species",
+            "mlp_dim": 3000,
+            "vocab_size": "!data_loader.vocab_size",
+            "embedding_dim": 100,
+            "kernel_length": 10,
+            "num_of_kernels": 100,
+            "sparse_gradient": true
+        }
+    },
+    "mapper": {
+        "type": "SingleNodeDataParallel",
+        "args": {
+          "n_gpu": 1
+        }
+    },
+    "data_loader": {
+        "type": "RefSeqProkaryotaKmerDataLoader",
+        "args": {
+            "genome_dir": "$(DATA_DIR)refseq_prokaryota/genomes",
+            "taxonomy_dir": "$(DATA_DIR)refseq_prokaryota/taxonomy",
+            "total_samples": 51200,
+            "batch_size": 2048,
+            "kmer_vocab_file": "$(DATA_DIR)refseq_prokaryota/token_5mer",
+            "fixed_dataset": false,
+            "drop_last": false,
+            "training_distribution": "uniform",
+            "validation_distribution": "lognormal",
+            "shuffle": true,
+            "validation_split": 8192,
+            "num_workers": 4,
+            "accessions_file": "$(DATA_DIR)refseq_prokaryota/ncbi_id_training_filtered.txt",
+            "taxids_list": null,
+            "error_model": "perfect",
+            "rmin": 1000,
+            "rmax": 1000,
+            "noise": 0.0,
+            "forward_reads_only": true,
+            "filter_by_level": null,
+            "num_to_keep": 1,
+            "download": false,
+            "genome_cache_size": -1
+        }
+    },
+    "optimizer": {
+      "type": "MultiOpt",
+      "args": {
+        "optimizers": {
+          "embedding": {
+            "type": "SparseAdam",
+            "args": {
+                "lr": 0.001
+            }
+          },
+          "default": {
+            "type": "Adam",
+            "args": {
+                "lr": 0.001,
+                "amsgrad": true
+            }
+          }
+        }
+      }
+    },
+    "loss": {
+        "type": "CrossEntropyLossPerRank",
+        "args": {
+            "selected_levels": ["species"],
+            "all_levels": "!data_loader.dataset.categories_with_leaf",
+            "class_percentages": null
+        }
+    },
+    "metrics": [
+      {
+        "type": "AccuracyPerTaxGroup",
+        "args": {
+          "k": 1,
+          "groups": "!data_loader.dataset.categories",
+          "selected_levels": ["species"]
+        }
+      },
+      {
+        "type": "JSPerTaxGroupWithCounts",
+        "args": {
+          "groups": "!data_loader.dataset.categories",
+          "selected_levels": ["species"]
+        }
+      }
+    ],
+    "lr_scheduler": {
+      "type": "MultiLR",
+      "args": {
+        "lr_schedulers": {
+          "default": {
+            "type": "StepLR",
+            "args": {
+              "step_size": 1,
+              "gamma": 0.9998
+            }
+          }
+        }
+      }
+    },
+    "trainer": {
+        "type": "Trainer",
+        "args": {},
+        "extra_args": {
+          "epochs": 10000,
+
+          "save_dir": "$(RESULTS_DIR)saved/",
+          "save_period": 100,
+          "keep_last": 2,
+          "verbosity": 2,
+
+          "monitor": "min val_loss",
+          "early_stop": 5000,
+
+          "tensorboardX": true,
+          "disable_hist": true
+        }
+    },
+    "testing": {
+      "verbosity": 2
+    }
+}

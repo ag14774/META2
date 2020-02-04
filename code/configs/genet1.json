@@ -1,0 +1,101 @@
+{
+    "name": "RefSeq_GeNet1",
+
+    "arch": {
+        "type": "GeNetModel",
+        "args": {
+            "list_num_classes": "!data_loader.dataset.rank_sizes",
+            "rmax": "!data_loader.rmax",
+            "resnet_out": 1024,
+            "kernel_h": 3,
+            "num_filters": 128
+        }
+    },
+    "mapper": {
+        "type": "SingleNodeDataParallel",
+        "args": {
+          "n_gpu": 1
+        }
+    },
+    "data_loader": {
+        "type": "RefSeqProkaryotaDataLoader",
+        "args": {
+            "genome_dir": "$(DATA_DIR)refseq_prokaryota/genomes",
+            "taxonomy_dir": "$(DATA_DIR)refseq_prokaryota/taxonomy",
+            "total_samples": 51200,
+            "batch_size": 64,
+            "fixed_dataset": false,
+            "shuffle": true,
+            "validation_split": 8192,
+            "num_workers": 4,
+            "accessions_file": "$(DATA_DIR)refseq_prokaryota/ncbi_id_training_filtered.txt",
+            "taxids_list": null,
+            "!error_model": ["perfect", "novaseq", null],
+            "rmin": 1000,
+            "rmax": 1000,
+            "noise": 0.03,
+            "filter_by_level": null,
+            "num_to_keep": 1,
+            "download": false,
+            "genome_cache_size": -1
+        }
+    },
+    "optimizer": {
+        "type": "SGD_TF",
+        "args":{
+            "lr": 1.0,
+            "momentum": 0.9,
+            "nesterov": true
+        }
+    },
+    "loss": {
+        "type": "CrossEntropyLossPerRank",
+        "args": {
+            "class_percentages": "!data_loader.dataset.class_percentages",
+            "all_levels": "!data_loader.dataset.categories_with_leaf"
+        }
+    },
+    "metrics": [
+      {
+        "type": "AccuracyPerTaxGroup",
+        "args": {
+          "k": 1,
+          "groups": "!data_loader.dataset.categories"
+        }
+      },
+      {
+        "type": "JSPerTaxGroupWithCounts",
+        "args": {
+          "groups": "!data_loader.dataset.categories"
+        }
+      }
+    ],
+    "lr_scheduler": {
+        "type": "StepLR",
+        "args": {
+          "step_size": 15,
+          "gamma": "!np.exp(1./300 * np.log(0.1 / 1.0))"
+        }
+    },
+    "trainer": {
+        "type": "Trainer",
+        "args": {},
+        "extra_args": {
+          "epochs": 10000,
+
+          "save_dir": "$(RESULTS_DIR)saved/",
+          "save_period": 100,
+          "keep_last": 5,
+          "verbosity": 2,
+
+          "monitor": "min val_loss",
+          "early_stop": 5000,
+
+          "tensorboardX": true,
+          "disable_hist": true
+        }
+    },
+    "testing": {
+      "verbosity": 2
+    }
+}

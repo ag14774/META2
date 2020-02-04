@@ -1,0 +1,146 @@
+{
+    "trainer": {
+        "type": "Trainer",
+        "extra_args": {
+            "verbosity": 2,
+            "tensorboardX": true,
+            "save_period": 100,
+            "save_dir": "$(REMOTE_RESULTS_DIR)saved/",
+            "monitor": "min val_loss",
+            "keep_last": 2,
+            "epochs": 10000,
+            "early_stop": 5000,
+            "disable_hist": true
+        }
+    },
+    "testing": {
+        "verbosity": 2
+    },
+    "optimizer": {
+        "type": "MultiOpt",
+        "args": {
+            "optimizers": {
+                "embedding": {
+                    "type": "Adam",
+                    "args": {
+                        "lr": 0.001,
+                        "amsgrad": true
+                    }
+                },
+                "default": {
+                    "type": "Adam",
+                    "args": {
+                        "lr": 0.001,
+                        "amsgrad": true
+                    }
+                }
+            }
+        }
+    },
+    "name": "RefSeq_EmbedPoolHashing3_phylum",
+    "metrics": [
+        {
+            "type": "AccuracyPerTaxGroup",
+            "args": {
+                "k": 1,
+                "groups": "!data_loader.dataset.categories",
+                "selected_levels": [
+                    "phylum"
+                ]
+            }
+        },
+        {
+            "type": "AccuracyPerTaxGroup",
+            "args": {
+                "k": 5,
+                "groups": "!data_loader.dataset.categories",
+                "selected_levels": [
+                    "phylum"
+                ]
+            }
+        },
+        {
+            "type": "JSPerTaxGroupWithCounts",
+            "args": {
+                "groups": "!data_loader.dataset.categories",
+                "selected_levels": [
+                    "phylum"
+                ]
+            }
+        }
+    ],
+    "mapper": {
+        "type": "SingleNodeDataParallel",
+        "args": {
+            "n_gpu": 1
+        }
+    },
+    "lr_scheduler": {
+        "type": "MultiLR",
+        "args": {
+            "lr_schedulers": {
+                "default": {
+                    "type": "StepLR",
+                    "args": {
+                        "step_size": 1,
+                        "gamma": 0.9998
+                    }
+                }
+            }
+        }
+    },
+    "loss": {
+        "type": "CrossEntropyLossPerRank",
+        "args": {
+            "selected_levels": [
+                "phylum"
+            ],
+            "class_percentages": null,
+            "all_levels": "!data_loader.dataset.categories_with_leaf"
+        }
+    },
+    "data_loader": {
+        "type": "RefSeqProkaryotaKmerDataLoader",
+        "args": {
+            "validation_split": 8192,
+            "validation_distribution": "uniform_phylum",
+            "training_distribution": "uniform_phylum",
+            "total_samples": 51200,
+            "taxonomy_dir": "$(DATA_DIR)refseq_prokaryota/taxonomy",
+            "taxids_list": null,
+            "shuffle": true,
+            "rmin": 1000,
+            "rmax": 1000,
+            "num_workers": 4,
+            "num_to_keep": 1,
+            "noise": 0.0,
+            "lsh_k": 0,
+            "lsh": false,
+            "kmer_vocab_file": "$(DATA_DIR)refseq_prokaryota/token_12mer",
+            "hash_bits": 20,
+            "genome_dir": "$(DATA_DIR)refseq_prokaryota/genomes",
+            "genome_cache_size": -1,
+            "forward_reads_only": true,
+            "fixed_dataset": false,
+            "filter_by_level": null,
+            "error_model": "perfect",
+            "drop_last": false,
+            "download": false,
+            "batch_size": 2048,
+            "accessions_file": "$(DATA_DIR)refseq_prokaryota/ncbi_id_training_filtered.txt"
+        }
+    },
+    "arch": {
+        "type": "HashEmbedPool",
+        "args": {
+            "selected_level": "phylum",
+            "num_words_in_weight_matrix": "!data_loader.vocab_size",
+            "num_words_in_embed_matrix": "!2**20",
+            "num_hashes": 3,
+            "mlp_dim": 3000,
+            "list_num_classes": "!data_loader.dataset.rank_sizes",
+            "embedding_dim": 100,
+            "all_levels": "!data_loader.dataset.categories_with_leaf"
+        }
+    }
+}
